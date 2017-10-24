@@ -13,19 +13,21 @@
 
 // PB2 pin 10 on the UNO header,
 // chip select to SCC2230 pin 13 (CSB) on MuRata header
-#define nCSB 10
+#define cs_Z_2230 9
 
 // PD7 pin 7 on the UNO,
 // chip select to SCC2130 pin 9 (EXTRA1) on MuRata header
-#define nCS1 7
+#define cs_Y_2130 8
 
 // PB0 pin 8 on the UNO header,
 // chip select to SCC2100  pin 8 (EXTRA2) on MuRata header
-#define nCS2 8
+#define cs_X_2100 7
+
+#define NUM_AXIS 3
 
 // PB1 Pin 9 on UNO header,
 // hard external reset to all 3 devices.
-#define nRESET 9
+#define nRESET 6
 
 #define MOSI 11
 #define MISO 12
@@ -37,26 +39,25 @@
 
 // murata sensor SPI commands
 // Standard Requests
-const unsigned long REQ_READ_RATE = 0x040000f7;
-const unsigned long REQ_READ_ACC_X = 0x100000e9;
-const unsigned long REQ_READ_ACC_Y = 0x140000ef;
-const unsigned long REQ_READ_ACC_Z = 0x180000e5;
-const unsigned long REQ_READ_TEMP = 0x1c0000e3;
-const unsigned long REQ_WRITE_FLT_60 =  0xfc200006;
+const unsigned long REQ_READ_RATE    = 0x040000f7;
+const unsigned long REQ_READ_ACC_X   = 0x100000e9;
+const unsigned long REQ_READ_ACC_Y   = 0x140000ef;
+const unsigned long REQ_READ_ACC_Z   = 0x180000e5;
+const unsigned long REQ_READ_TEMP    = 0x1c0000e3;
+const unsigned long REQ_WRITE_FLT_60 = 0xfc200006;
 const unsigned long REQ_WRITE_FLT_10 = 0xfc1000c7;
-const unsigned long REQ_READ_STAT_SUM = 0x7c0000b3;
+const unsigned long REQ_READ_STAT_SUM   = 0x7c0000b3;
 const unsigned long REQ_READ_RATE_STAT1 = 0x240000c7;
 const unsigned long REQ_READ_RATE_STAT2 = 0x280000cd;
-const unsigned long REQ_READ_ACC_STAT = 0x3c00003d;
-const unsigned long REQ_READ_COM_STAT1 = 0x6c0000ab;
+const unsigned long REQ_READ_ACC_STAT   = 0x3c00003d;
+const unsigned long REQ_READ_COM_STAT1  = 0x6c0000ab;
+
 // Special requests
 const unsigned long REQ_HARD_RESET = 0xD8000431;
-
 
 // Function prototypes
 unsigned long initialise_device(int);
 unsigned long spi_transfer(unsigned long, int);
-void setup(void);
 void reset_sensor_module(void);
 int  check_status_ok(unsigned long);
 void test_status(void);
@@ -70,33 +71,33 @@ void loop()
     unsigned long acc_x;
     unsigned long acc_y;
     unsigned long acc_z;
-    const char *ident[3];
-    int chip_select_list[3],chip_select, i;
+    const char *ident[NUM_AXIS];
+    int chip_select_list[NUM_AXIS],chip_select, i;
     char srate[12], sacc_x[12], sacc_y[12], sacc_z[12];
 
-    chip_select_list[0] = nCSB;
-    chip_select_list[1] = nCS1;
-    chip_select_list[2] = nCS2;
-    ident[0] = "nCSB";
-    ident[1] = "nCS1";
-    ident[2] = "nCS2";
+    chip_select_list[0] = cs_Z_2230;
+    chip_select_list[1] = cs_Y_2130;
+    chip_select_list[2] = cs_X_2100;
+    ident[0] = "cs_Z_2230";
+    ident[1] = "cs_Y_2130";
+    ident[2] = "cs_X_2100";
 
     // All read commands are 1 frame delayed so when a write is performed, the read data is
     // from a register of the previous write.
-    for (chip_select = 0; chip_select < 3; chip_select++) {
+    for (chip_select = 0; chip_select < NUM_AXIS; chip_select++) {
         response_stat_sum = spi_transfer(REQ_READ_RATE, chip_select);
     }
 
-    Serial.print("ID, rate, a_x, a_y, a_z\n");
+    Serial.println("ID, rate, a_x, a_y, a_z");
 
-    for(i = 0; i < 8; i++) {
-        chip_select = 0;
+    for(i = 0; i < NUM_AXIS; i++) {
+        chip_select = i;
         rate =  spi_transfer(REQ_READ_ACC_X, chip_select_list[chip_select]);
         acc_x = spi_transfer(REQ_READ_ACC_Y, chip_select_list[chip_select]);
         acc_y = spi_transfer(REQ_READ_ACC_Z, chip_select_list[chip_select]);    
         acc_z = spi_transfer(REQ_READ_RATE, chip_select_list[chip_select]);
 
-        // debug section //
+        // debug section
         sprintf(srate, "%d", ( rate >> 8UL) & 0xFFFF);
         sprintf(sacc_x, "%d", (acc_x >> 8UL) & 0xFFFF);
         sprintf(sacc_y, "%d", (acc_y >> 8UL) & 0xFFFF);
@@ -122,17 +123,18 @@ void loop()
 void setup(void)
 {
     unsigned long response_stat_sum;
-    const char *ident[3];
-    int chip_select_list[3],chip_select, i;
+    const char *ident[NUM_AXIS];
+    int chip_select_list[NUM_AXIS], chip_select, i;
 
     // Setup SPI
-    pinMode(nCSB, OUTPUT);
-    pinMode(nCS1, OUTPUT);
-    pinMode(nCS2, OUTPUT);
+    pinMode(cs_Z_2230, OUTPUT);
+    pinMode(cs_Y_2130, OUTPUT);
+    pinMode(cs_X_2100, OUTPUT);
     pinMode(nRESET, OUTPUT);
-    digitalWrite(nCSB, HIGH);
-    digitalWrite(nCS1, HIGH);
-    digitalWrite(nCS2, HIGH);
+
+    digitalWrite(cs_Z_2230, HIGH);
+    digitalWrite(cs_Y_2130, HIGH);
+    digitalWrite(cs_X_2100, HIGH);
     digitalWrite(nRESET, HIGH);
 
     // Configure the SPI Library and will define the standard chip SPI pins
@@ -146,23 +148,23 @@ void setup(void)
 
     reset_sensor_module();
 
-    // Initialise nCSB (SCC2230)
-    response_stat_sum = initialise_device(nCSB);
+    // Initialise cs_Z_2230 (SCC2230)
+    response_stat_sum = initialise_device(cs_Z_2230);
     if (check_status_ok(response_stat_sum) == 0) {
         Serial.println("SCC2230 has failed Initialisation");
     }
-    response_stat_sum = initialise_device(nCS1);  
 
+    /*response_stat_sum = initialise_device(cs_Y_2130);  
     if (check_status_ok(response_stat_sum) == 0) {
         Serial.println("SCC2130 has failed Initialisation");
     }
-    response_stat_sum = initialise_device(nCS2);  
 
+    response_stat_sum = initialise_device(cs_X_2100);  
     if (check_status_ok(response_stat_sum) == 0) {
         Serial.println("SCC2100 has failed Initialisation");
     }
 
-    test_status();
+    test_status();*/
       
 }
 
@@ -178,7 +180,7 @@ void reset_sensor_module()
 }
 
 //***************************************//
-unsigned long initialise_device (int ncs)
+unsigned long initialise_device(int ncs)
 {
     unsigned long response_stat_sum;
  
@@ -193,9 +195,11 @@ unsigned long initialise_device (int ncs)
     spi_transfer(REQ_READ_STAT_SUM,ncs);
 
     // read a 2nd time because of out of frame format
-    response_stat_sum = spi_transfer(REQ_READ_STAT_SUM,ncs);
+    response_stat_sum = spi_transfer(REQ_READ_STAT_SUM, ncs);
+
     // read a 3rd time to be safe (maybe unnecessary)
-    response_stat_sum = spi_transfer(REQ_READ_STAT_SUM,ncs);
+    response_stat_sum = spi_transfer(REQ_READ_STAT_SUM, ncs);
+
     Serial.print("ResponseStatSum = ");
     Serial.println (response_stat_sum, HEX);
     return response_stat_sum;
@@ -216,7 +220,9 @@ unsigned long spi_transfer(unsigned long data, int ncs)
     buffer |= (unsigned long)SPI.transfer((data>>16)) << 16UL;
     buffer |= (unsigned long)SPI.transfer((data>>8)) << 8UL;
     buffer |= (unsigned long)SPI.transfer(data);
-    digitalWrite(ncs, HIGH);  // deassert chip select
+
+    // deassert chip select
+    digitalWrite(ncs, HIGH);
 
     return buffer;
 }
@@ -253,14 +259,15 @@ void test_status()
     unsigned long response_stat_sum;
     int temperature;
 
-    spi_transfer(REQ_READ_STAT_SUM,nCSB);
+    spi_transfer(REQ_READ_STAT_SUM,cs_Z_2230);
+
     // perfrom this twice to read the out of frame status summary
-    response_stat_sum = spi_transfer(REQ_READ_STAT_SUM,nCSB);
+    response_stat_sum = spi_transfer(REQ_READ_STAT_SUM,cs_Z_2230);
 
     gyro_status = (response_stat_sum >> 8) & 0x01;
     acc_status = (response_stat_sum >> 11) & 0x01;
-    temp = spi_transfer(REQ_READ_TEMP, nCSB);
-    temp = (spi_transfer(REQ_READ_TEMP, nCSB) >> 8UL) & 0xFFFF;
+    temp = spi_transfer(REQ_READ_TEMP, cs_Z_2230);
+    temp = (spi_transfer(REQ_READ_TEMP, cs_Z_2230) >> 8UL) & 0xFFFF;
 
     temperature = calculate_temperature(temp);
     Serial.print("response_stat_sum =0x");
@@ -273,24 +280,24 @@ void test_status()
     Serial.print("Temperature = ");
     Serial.println(temperature, DEC);
 
-    spi_transfer(REQ_READ_RATE_STAT1, nCSB);
-    response_stat_sum = spi_transfer(REQ_READ_RATE_STAT1, nCSB);
+    spi_transfer(REQ_READ_RATE_STAT1, cs_Z_2230);
+    response_stat_sum = spi_transfer(REQ_READ_RATE_STAT1, cs_Z_2230);
     Serial.print("RATE Status 1 Register =0x");
     Serial.println(response_stat_sum, HEX);
 
-    spi_transfer(REQ_READ_RATE_STAT2, nCSB);
-    response_stat_sum = spi_transfer(REQ_READ_RATE_STAT2, nCSB);
-    Serial.print("RATE Status 2 Register =0x");
+    spi_transfer(REQ_READ_RATE_STAT2, cs_Z_2230);
+    response_stat_sum = spi_transfer(REQ_READ_RATE_STAT2, cs_Z_2230);
+    Serial.print("RATE Status 2 Register = 0x");
     Serial.println(response_stat_sum, HEX);
 
-    spi_transfer(REQ_READ_COM_STAT1, nCSB);
-    response_stat_sum = spi_transfer(REQ_READ_COM_STAT1, nCSB);
-    Serial.print("COMMON Status Register =0x");
+    spi_transfer(REQ_READ_COM_STAT1, cs_Z_2230);
+    response_stat_sum = spi_transfer(REQ_READ_COM_STAT1, cs_Z_2230);
+    Serial.print("COMMON Status Register = 0x");
     Serial.println(response_stat_sum, HEX);
 
-    spi_transfer(REQ_READ_ACC_STAT, nCSB);
-    response_stat_sum = spi_transfer(REQ_READ_ACC_STAT, nCSB);
-    Serial.print("ACC Status Register =0x");
+    spi_transfer(REQ_READ_ACC_STAT, cs_Z_2230);
+    response_stat_sum = spi_transfer(REQ_READ_ACC_STAT, cs_Z_2230);
+    Serial.print("ACC Status Register = 0x");
     Serial.println(response_stat_sum, HEX);
 }
 
